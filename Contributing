@@ -1,0 +1,83 @@
+# Guia de Contribuição
+
+Obrigado por considerar contribuir com o **Tech Solutions AD Manager**!
+
+---
+
+## Como Contribuir
+
+### Reportando Bugs
+
+Antes de abrir uma issue, verifique se o bug já não foi reportado.
+
+Ao abrir uma issue de bug, inclua:
+
+- Versão do Python utilizada
+- Sistema operacional e versão do Windows
+- Versão do domínio AD (Windows Server)
+- Passos para reproduzir o problema
+- Comportamento esperado vs. comportamento atual
+- Prints ou logs de erro, se disponíveis
+
+### Sugerindo Melhorias
+
+Abra uma issue com o label `enhancement` descrevendo:
+
+- O problema que a melhoria resolve
+- Como você imagina que deve funcionar
+- Por que seria útil para outros usuários
+
+### Enviando Pull Requests
+
+1. Fork o repositório
+2. Crie uma branch descritiva:
+   ```bash
+   git checkout -b feature/exportar-foto-perfil
+   git checkout -b fix/validacao-cpf-edge-case
+   ```
+3. Faça suas alterações seguindo os padrões do projeto
+4. Teste localmente em um ambiente com AD
+5. Commit usando mensagens claras no padrão [Conventional Commits](https://www.conventionalcommits.org/):
+   ```
+   feat: adiciona exportação de foto de perfil
+   fix: corrige validação de CPF com zeros à esquerda
+   docs: atualiza README com novo fluxo de uso
+   refactor: extrai lógica de geração de login para módulo separado
+   ```
+6. Push e abra um Pull Request descrevendo o que foi feito e por quê
+
+---
+
+## Padrões de Código
+
+- Siga o estilo já existente no arquivo `GerenciadorAD.py`
+- Use comentários em português para manter consistência
+- Funções novas devem ter docstring explicando o que fazem
+- Variáveis globais de estado devem ser declaradas no bloco `ESTADO GLOBAL`
+- Toda nova operação em lote deve usar `iniciar_progresso` / `atualizar_progresso` / `finalizar_progresso`
+- Mensagens de log devem usar `adicionar_log(msg, tipo)` com o tipo correto:
+  - `"ok"` — sucesso
+  - `"aviso"` — atenção / não-bloqueante
+  - `"erro"` — falha
+  - `"info"` — informação neutra
+
+---
+
+## Ambiente de Desenvolvimento
+
+```bash
+git clone https://github.com/seu-usuario/ad-manager.git
+cd ad-manager
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+python GerenciadorAD.py
+```
+
+> Você precisa estar em uma máquina Windows conectada a um domínio AD para testar as funcionalidades de integração. Para desenvolvimento da interface apenas, as funções do pyad retornarão erros que podem ser tratados sem impacto.
+
+---
+
+## Dúvidas
+
+Abra uma issue com o label `question` ou entre em contato diretamente.
