@@ -111,8 +111,9 @@ config_login = {
 }
 
 config_senha = {
-    "blocos":      ["cpf_completo"],
-    "senha_fixa":  "Tech@2026",    # usado somente se bloco "senha_fixa" estiver ativo
+    "blocos":           ["cpf_completo"],
+    "senha_fixa":       "Tech@2026",    # usado somente se bloco "senha_fixa" estiver ativo
+    "forcar_troca":     False,          # forçar troca de senha no próximo login
 }
 
 # =============================
@@ -123,7 +124,16 @@ def remover_acentos(texto):
     return unidecode(str(texto))
 
 def limpar_cpf(cpf):
-    return re.sub(r'\D', '', str(cpf))
+    # Remove tudo que não é dígito e garante zeros à esquerda até 11 dígitos
+    apenas_digitos = re.sub(r'\D', '', str(cpf))
+    return apenas_digitos.zfill(11) if len(apenas_digitos) <= 11 else apenas_digitos
+
+def formatar_cpf(cpf):
+    # Garante exibição sempre no formato 000.000.000-00
+    digitos = limpar_cpf(cpf)
+    if len(digitos) == 11:
+        return f"{digitos[:3]}.{digitos[3:6]}.{digitos[6:9]}-{digitos[9:]}"
+    return cpf  # retorna original se não tiver 11 dígitos
 
 def _resolver_bloco_login(bloco, nome, cpf):
     partes = nome.strip().split()
@@ -178,7 +188,11 @@ def gerar_senha(nome, cpf):
         val = _resolver_bloco_senha(bloco, nome, cpf)
         if val:
             partes.append(val)
-    return "".join(partes) or limpar_cpf(cpf)
+    senha = "".join(partes) or limpar_cpf(cpf)
+    # Garante que senha baseada em CPF sempre tenha 11 dígitos
+    if senha.isdigit() and len(senha) < 11:
+        senha = senha.zfill(11)
+    return senha
 
 # =============================
 # VALIDAÇÃO DE CPF (dígitos verificadores)
@@ -272,23 +286,28 @@ def exportar_log():
 # =============================
 
 def atualizar_rodape():
-    total     = len(table.get_children())
+    total        = len(table.get_children())
     selecionados = len(itens_selecionados()) if 'table' in globals() else 0
-    criados   = sum(1 for i in table.get_children() if "Criado"    in str(table.item(i,"values")))
-    erros_tb  = sum(1 for i in table.get_children() if "⚠ Erro"   in str(table.item(i,"values")))
+    criados      = sum(1 for i in table.get_children() if "✅" in str(table.item(i,"values")))
+    ja_existe    = sum(1 for i in table.get_children() if "🔵" in str(table.item(i,"values")))
+    erros_tb     = sum(1 for i in table.get_children() if "❌" in str(table.item(i,"values")))
     label_rodape.configure(
-        text=f"Total: {total}  |  Selecionados: {selecionados}  |  Criados: {criados}  |  Erros: {erros_tb}"
+        text=(
+            f"Total: {total}  |  Selecionados: {selecionados}  |  "
+            f"✅ Criados: {criados}  |  🔵 Já existe: {ja_existe}  |  ❌ Erros: {erros_tb}"
+        )
     )
 
 # =============================
 # BARRA DE PROGRESSO
 # =============================
 
-def iniciar_progresso(total):
+def iniciar_progresso(total, acao="Processando"):
     progress_bar.configure(mode="determinate")
     progress_bar.set(0)
     label_progresso.configure(text=f"0 / {total}")
     frame_progresso.pack(fill="x", padx=20, pady=(0,4))
+    iniciar_spinner(acao)
     app.update_idletasks()
 
 def atualizar_progresso(atual, total):
@@ -298,7 +317,38 @@ def atualizar_progresso(atual, total):
     app.update_idletasks()
 
 def finalizar_progresso():
+    parar_spinner()
     frame_progresso.pack_forget()
+
+# =============================
+# ANIMAÇÃO DE CARREGAMENTO
+# =============================
+
+_spinner_frames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
+_spinner_idx    = 0
+_spinner_ativo  = False
+_spinner_acao   = ""
+
+def iniciar_spinner(acao="Processando"):
+    global _spinner_ativo, _spinner_acao, _spinner_idx
+    _spinner_ativo = True
+    _spinner_acao  = acao
+    _spinner_idx   = 0
+    _animar_spinner()
+
+def _animar_spinner():
+    global _spinner_idx
+    if not _spinner_ativo:
+        return
+    frame = _spinner_frames[_spinner_idx % len(_spinner_frames)]
+    label_acao.configure(text=f"{frame} {_spinner_acao}...", text_color=COR_PRIMARIA)
+    _spinner_idx += 1
+    app.after(100, _animar_spinner)
+
+def parar_spinner():
+    global _spinner_ativo
+    _spinner_ativo = False
+    label_acao.configure(text="")
 
 # =============================
 # DETECÇÃO AUTOMÁTICA DE DOMÍNIO
@@ -533,15 +583,31 @@ def abrir_configuracoes():
     lbl_senha_prev.pack(pady=(0,6))
     rebuild_senha_preview()
 
+    # ---------- OPÇÕES AVANÇADAS ----------
+    frame_avancado = ctk.CTkFrame(win)
+    frame_avancado.pack(fill="x", padx=20, pady=(0,8))
+
+    ctk.CTkLabel(frame_avancado, text="Opções de Criação:", font=("Arial",12,"bold"),
+                 anchor="w").pack(side="left", padx=8)
+
+    forcar_troca_var = tk.BooleanVar(value=config_senha.get("forcar_troca", False))
+    ctk.CTkCheckBox(
+        frame_avancado,
+        text="Forçar troca de senha no próximo login",
+        variable=forcar_troca_var,
+        text_color=COR_AVISO
+    ).pack(side="left", padx=12)
+
     # ---------- BOTÕES ----------
     frame_btns = ctk.CTkFrame(win, fg_color="transparent")
     frame_btns.pack(pady=10)
 
     def restaurar_padrao():
-        config_login["blocos"]    = ["primeiro_nome", "ultimo_nome", "cpf_4"]
-        config_login["separador"] = ""
-        config_senha["blocos"]    = ["cpf_completo"]
-        config_senha["senha_fixa"]= "Tech@2026"
+        config_login["blocos"]      = ["primeiro_nome", "ultimo_nome", "cpf_4"]
+        config_login["separador"]   = ""
+        config_senha["blocos"]      = ["cpf_completo"]
+        config_senha["senha_fixa"]  = "Tech@2026"
+        config_senha["forcar_troca"]= False
         adicionar_log("↺ Configurações restauradas para o padrão.", "aviso")
         win.destroy()
         # Recarregar planilha para regenerar logins
@@ -549,14 +615,16 @@ def abrir_configuracoes():
             carregar_preview()
 
     def salvar():
-        config_login["blocos"]    = [b for b in BLOCOS_LOGIN if login_checks[b].get()]
-        config_login["separador"] = "" if sep_var.get() == "nenhum" else sep_var.get()
-        config_senha["blocos"]    = [b for b in BLOCOS_SENHA if senha_checks[b].get()]
-        config_senha["senha_fixa"]= entry_fixa.get()
+        config_login["blocos"]      = [b for b in BLOCOS_LOGIN if login_checks[b].get()]
+        config_login["separador"]   = "" if sep_var.get() == "nenhum" else sep_var.get()
+        config_senha["blocos"]      = [b for b in BLOCOS_SENHA if senha_checks[b].get()]
+        config_senha["senha_fixa"]  = entry_fixa.get()
+        config_senha["forcar_troca"]= forcar_troca_var.get()
         if not config_login["blocos"]:
             messagebox.showwarning("Atenção","Selecione ao menos um bloco para o login.", parent=win)
             return
-        adicionar_log("✔ Configurações de login/senha salvas.", "ok")
+        status_troca = "ativada" if forcar_troca_var.get() else "desativada"
+        adicionar_log(f"✔ Configurações salvas — troca de senha no próximo login: {status_troca}", "ok")
         win.destroy()
         if excel_path:
             carregar_preview()
@@ -648,14 +716,14 @@ def detectar_header(df):
 
 def carregar_preview():
     try:
-        df     = pd.read_excel(excel_path, header=None)
+        df     = pd.read_excel(excel_path, header=None, dtype=str)
         header = detectar_header(df)
 
         if header is None:
             adicionar_log("✖ Colunas 'Nome' e 'CPF' não encontradas na planilha.", "erro")
             return
 
-        dados = pd.read_excel(excel_path, header=header)
+        dados = pd.read_excel(excel_path, header=header, dtype=str)
         table.delete(*table.get_children())
 
         erros_encontrados = []
@@ -682,16 +750,18 @@ def carregar_preview():
 
             if erros:
                 erros_encontrados.extend(erros)
+                cpf_fmt = formatar_cpf(cpf)
                 table.insert("", "end",
-                    values=(UNCHECKED, nome, cpf, "—", "—", "⚠ Erro"),
+                    values=(UNCHECKED, nome, cpf_fmt, "—", "—", "❌ Erro"),
                     tags=("erro_dados",))
             else:
                 login = gerar_login(nome, cpf, matricula)
                 senha = gerar_senha(nome, cpf)
+                cpf_fmt = formatar_cpf(cpf)
                 logins_gerados.append((linha_num, login))
                 table.insert("", "end",
-                    values=(UNCHECKED, nome, cpf, login, senha, "Carregado"),
-                    tags=("disponivel",))
+                    values=(UNCHECKED, nome, cpf_fmt, login, senha, "🟠 Carregado"),
+                    tags=("carregado",))
                 ok += 1
 
         # 15 — Detectar duplicatas de login na própria planilha
@@ -771,14 +841,19 @@ def verificar():
 
     for idx, item in enumerate(alvos, 1):
         dados = table.item(item)["values"]
-        login = dados[3]
+        login = str(dados[3]).strip()
+        nome  = str(dados[1]).strip()
+        cpf   = str(dados[2]).strip()
+        cpf_fmt = formatar_cpf(cpf)
         if login == "—":
             atualizar_progresso(idx, len(alvos))
             continue
         if usuario_existe(login):
-            table.item(item, values=(dados[0],dados[1],dados[2],login,dados[4],"Já existe"), tags=("existe",))
+            senha_correta = gerar_senha(nome, cpf)
+            table.item(item, values=(dados[0],nome,cpf_fmt,login,senha_correta,"🔵 Já existe"), tags=("existe",))
         else:
-            table.item(item, values=(dados[0],dados[1],dados[2],login,dados[4],"Disponível"), tags=("disponivel",))
+            senha_correta = gerar_senha(nome, cpf)
+            table.item(item, values=(dados[0],nome,cpf_fmt,login,senha_correta,"🟡 Disponível"), tags=("disponivel",))
         atualizar_progresso(idx, len(alvos))
 
     finalizar_progresso()
@@ -793,35 +868,105 @@ def criar():
         adicionar_log("✖ Selecione uma OU antes de criar usuários.", "erro")
         messagebox.showerror("OU não selecionada","Selecione a OU de destino.")
         return
+
     alvos = itens_selecionados()
     if not alvos:
         adicionar_log("⚠ Nenhum usuário selecionado.", "aviso")
         return
 
-    container = adcontainer.ADContainer.from_dn(OU_USUARIOS)
-    iniciar_progresso(len(alvos))
+    # Conectar ao container da OU — envolvido em try para não congelar
+    try:
+        adicionar_log(f"🔗 Conectando à OU: {OU_USUARIOS}", "info")
+        container = adcontainer.ADContainer.from_dn(OU_USUARIOS)
+        adicionar_log("✔ Conexão com a OU estabelecida.", "ok")
+    except Exception as e:
+        adicionar_log(f"✖ Erro ao conectar na OU: {e}", "erro")
+        messagebox.showerror("Erro de Conexão", f"Não foi possível conectar à OU:\n{e}")
+        return
+
+    iniciar_progresso(len(alvos), "Criando")
+    adicionar_log(f"▶ Iniciando criação de {len(alvos)} usuário(s)...", "info")
 
     for idx, item in enumerate(alvos, 1):
-        dados = table.item(item)["values"]
-        nome  = dados[1]
-        cpf   = limpar_cpf(dados[2])
-        login = dados[3]
-        senha = dados[4]
-
-        if login == "—" or usuario_existe(login):
-            atualizar_progresso(idx, len(alvos))
-            continue
         try:
-            user = aduser.ADUser.create(login, container, password=senha)
-            user.update_attribute("displayName", nome)
-            user.update_attribute("userPrincipalName", f"{login}@{DOMINIO}")
-            table.item(item, values=(dados[0],nome,cpf,login,senha,"Criado"), tags=("criado",))
-            adicionar_log(f"✔ Usuário criado: {login}", "ok")
+            dados = table.item(item)["values"]
+            nome  = str(dados[1]).strip()
+            cpf   = limpar_cpf(str(dados[2]))
+            login = str(dados[3]).strip()
+            senha = str(dados[4]).strip()  # Treeview pode retornar int — forçar string
+
+            adicionar_log(f"  [{idx}/{len(alvos)}] Processando: {login}", "info")
+
+            # Pular linha com erro de validação
+            if login == "—":
+                adicionar_log(f"  ⚠ Linha ignorada — login inválido", "aviso")
+                atualizar_progresso(idx, len(alvos))
+                continue
+
+            # Garantir senha com 11 dígitos (silencioso — comportamento padrão)
+            if senha.isdigit() and len(senha) < 11:
+                senha = senha.zfill(11)
+                table.item(item, values=(dados[0],nome,dados[2],login,senha,dados[5]))
+
+            # Bloquear se senha ainda estiver incorreta
+            if senha.isdigit() and len(senha) != 11:
+                adicionar_log(
+                    f"  ✖ {login} ignorado — senha com {len(senha)} dígitos (esperado: 11)", "erro"
+                )
+                atualizar_progresso(idx, len(alvos))
+                continue
+
+            # Verificar existência no AD
+            try:
+                ja_existe = usuario_existe(login)
+            except Exception as e:
+                adicionar_log(f"  ✖ Erro ao verificar existência de {login}: {e}", "erro")
+                atualizar_progresso(idx, len(alvos))
+                continue
+
+            if ja_existe:
+                adicionar_log(f"  ⚠ {login} já existe no AD — ignorado", "aviso")
+                table.item(item, values=(dados[0],nome,cpf,login,senha,"Já existe"), tags=("existe",))
+                atualizar_progresso(idx, len(alvos))
+                continue
+
+            # Criar o usuário
+            try:
+                adicionar_log(f"  → Criando usuário: {login}", "info")
+                user = aduser.ADUser.create(login, container, password=senha)
+            except Exception as e:
+                adicionar_log(f"  ✖ Falha ao criar {login}: {e}", "erro")
+                table.item(item, values=(dados[0],nome,cpf,login,senha,"❌ Erro"), tags=("erro_dados",))
+                atualizar_progresso(idx, len(alvos))
+                continue
+
+            # Atualizar atributos
+            try:
+                user.update_attribute("displayName", nome)
+                user.update_attribute("userPrincipalName", f"{login}@{DOMINIO}")
+            except Exception as e:
+                adicionar_log(f"  ⚠ {login} criado mas atributos não atualizados: {e}", "aviso")
+
+            # Forçar troca de senha se configurado
+            if config_senha.get("forcar_troca", False):
+                try:
+                    user.update_attribute("pwdLastSet", "0")
+                    adicionar_log(f"  🔑 Troca de senha no próximo login ativada: {login}", "aviso")
+                except Exception as e:
+                    adicionar_log(f"  ⚠ Não foi possível forçar troca de senha para {login}: {e}", "aviso")
+
+            cpf_fmt = formatar_cpf(dados[2])
+            table.item(item, values=(dados[0],nome,cpf_fmt,login,senha,"✅ Criado"), tags=("criado",))
+            adicionar_log(f"  ✔ Usuário criado com sucesso: {login}", "ok")
+
         except Exception as e:
-            adicionar_log(f"✖ Erro ao criar {login}: {e}", "erro")
+            # Captura qualquer erro inesperado no loop sem deixar a ferramenta congelar
+            adicionar_log(f"  ✖ Erro inesperado ao processar item {idx}: {e}", "erro")
+
         atualizar_progresso(idx, len(alvos))
 
     finalizar_progresso()
+    adicionar_log("▶ Processo de criação finalizado.", "info")
     atualizar_rodape()
 
 # =============================
@@ -833,32 +978,146 @@ def redefinir_senha():
     if not alvos:
         adicionar_log("⚠ Nenhum usuário selecionado.", "aviso")
         return
-    if not messagebox.askyesno("Confirmar","Redefinir senha dos usuários selecionados para o padrão configurado?"):
-        return
 
-    iniciar_progresso(len(alvos))
+    # ── Janela de opções de reset ──
+    win = ctk.CTkToplevel(app)
+    win.title("Redefinir Senha")
+    win.geometry("480x340")
+    win.grab_set()
+    win.resizable(False, False)
+
+    ctk.CTkLabel(win, text="🔑 Opções de Redefinição de Senha",
+                 font=("Arial", 14, "bold")).pack(pady=(18, 4))
+    ctk.CTkLabel(win, text=f"{len(alvos)} usuário(s) selecionado(s)",
+                 text_color="gray", font=("Arial", 11)).pack(pady=(0, 14))
+
+    opcao_var = tk.StringVar(value="cpf")
+
+    # ── Opção 1 — CPF (padrão) ──
+    frame_op1 = ctk.CTkFrame(win)
+    frame_op1.pack(fill="x", padx=24, pady=4)
+    ctk.CTkRadioButton(
+        frame_op1, text="CPF do usuário  (11 dígitos — padrão)",
+        variable=opcao_var, value="cpf",
+        font=("Arial", 12)
+    ).pack(side="left", padx=12, pady=10)
+
+    # ── Opção 2 — Senha padrão + forçar troca ──
+    frame_op2 = ctk.CTkFrame(win)
+    frame_op2.pack(fill="x", padx=24, pady=4)
+    ctk.CTkRadioButton(
+        frame_op2, text="Senha padrão  12345678  + forçar troca no próximo login",
+        variable=opcao_var, value="padrao",
+        font=("Arial", 12), text_color=COR_AVISO
+    ).pack(side="left", padx=12, pady=10)
+
+    # ── Opção 3 — Senha manual ──
+    frame_op3 = ctk.CTkFrame(win)
+    frame_op3.pack(fill="x", padx=24, pady=4)
+
+    ctk.CTkRadioButton(
+        frame_op3, text="Senha manual:",
+        variable=opcao_var, value="manual",
+        font=("Arial", 12)
+    ).pack(side="left", padx=12, pady=10)
+
+    entry_manual = ctk.CTkEntry(frame_op3, width=180, placeholder_text="Digite a senha")
+    entry_manual.pack(side="left", padx=(0, 12), pady=10)
+
+    # Ao clicar no campo manual, seleciona a opção automaticamente
+    entry_manual.bind("<FocusIn>", lambda *_: opcao_var.set("manual"))
+
+    # ── Botões ──
+    frame_btns = ctk.CTkFrame(win, fg_color="transparent")
+    frame_btns.pack(pady=(12, 0))
+
+    def confirmar():
+        opcao = opcao_var.get()
+
+        if opcao == "manual":
+            senha_manual = entry_manual.get().strip()
+            if not senha_manual:
+                messagebox.showwarning("Atenção", "Digite a senha manual antes de confirmar.", parent=win)
+                return
+            if len(senha_manual) < 8:
+                messagebox.showwarning("Atenção", "A senha deve ter no mínimo 8 caracteres.", parent=win)
+                return
+
+        senha_final = entry_manual.get().strip()
+        win.destroy()
+        # Executa em thread separada para não travar a interface
+        threading.Thread(
+            target=_executar_redefinir,
+            args=(alvos, opcao, senha_final),
+            daemon=True
+        ).start()
+
+    ctk.CTkButton(frame_btns, text="✖ Cancelar",
+                  fg_color=COR_NEUTRO, hover_color=COR_NEU_HOVER,
+                  width=120, command=win.destroy
+    ).pack(side="left", padx=8)
+
+    ctk.CTkButton(frame_btns, text="✔ Confirmar",
+                  fg_color=COR_SECUNDARIA, hover_color=COR_SEC_HOVER,
+                  width=120, command=confirmar
+    ).pack(side="left", padx=8)
+
+
+def _executar_redefinir(alvos, opcao, senha_manual=""):
+    """Executa o reset de senha conforme a opção escolhida."""
+
+    adicionar_log(f"🔑 Redefinindo senha de {len(alvos)} usuário(s) — modo: {opcao}", "info")
+    iniciar_progresso(len(alvos), "Redefinindo Senha")
+
     for idx, item in enumerate(alvos, 1):
         dados = table.item(item)["values"]
-        login = dados[3]
-        senha = dados[4]
+        login = str(dados[3]).strip()
+        cpf   = limpar_cpf(str(dados[2]))
+
         if login == "—":
             atualizar_progresso(idx, len(alvos))
             continue
+
+        # Determinar a senha conforme opção
+        if opcao == "cpf":
+            senha = cpf  # CPF completo 11 dígitos
+        elif opcao == "padrao":
+            senha = "12345678"
+        else:
+            senha = senha_manual
+
         try:
             q = adquery.ADQuery()
-            q.execute_query(attributes=["distinguishedName"], where_clause=f"sAMAccountName='{login}'")
+            q.execute_query(
+                attributes=["distinguishedName"],
+                where_clause=f"sAMAccountName='{login}'"
+            )
             res = list(q.get_results())
-            if res:
-                user = aduser.ADUser.from_dn(res[0]["distinguishedName"])
-                user.set_password(senha)
-                adicionar_log(f"✔ Senha redefinida: {login}", "ok")
-            else:
-                adicionar_log(f"⚠ Usuário não encontrado no AD: {login}", "aviso")
+
+            if not res:
+                adicionar_log(f"⚠ {login} não encontrado no AD", "aviso")
+                atualizar_progresso(idx, len(alvos))
+                continue
+
+            user = aduser.ADUser.from_dn(res[0]["distinguishedName"])
+            user.set_password(senha)
+
+            # Opção padrão: forçar troca no próximo login
+            if opcao == "padrao":
+                try:
+                    user.update_attribute("pwdLastSet", "0")
+                except Exception:
+                    pass  # Não bloquear se não conseguir forçar troca
+
+            adicionar_log(f"✔ Senha redefinida: {login}", "ok")
+
         except Exception as e:
-            adicionar_log(f"✖ Erro ao redefinir senha de {login}: {e}", "erro")
+            adicionar_log(f"✖ Erro ao redefinir {login}: {e}", "erro")
+
         atualizar_progresso(idx, len(alvos))
 
     finalizar_progresso()
+    adicionar_log("🔑 Redefinição de senhas finalizada.", "info")
 
 # =============================
 # MOVER USUÁRIO DE OU
@@ -935,7 +1194,7 @@ def mover_ou():
                   hover_color=COR_SEC_HOVER, command=confirmar_mover).pack(pady=(4,15))
 
 def _executar_mover(alvos, ou_destino):
-    iniciar_progresso(len(alvos))
+    iniciar_progresso(len(alvos), "Movendo")
     container_destino = adcontainer.ADContainer.from_dn(ou_destino)
 
     for idx, item in enumerate(alvos, 1):
@@ -1106,12 +1365,28 @@ table.column("Login",  width=200)
 table.column("Senha",  width=180)
 table.column("Status", width=110)
 
-table.pack(fill="both", expand=True)
+# Scrollbar vertical na tabela
+scroll_table = ttk.Scrollbar(frame_table, orient="vertical", command=table.yview)
+table.configure(yscrollcommand=scroll_table.set)
+scroll_table.pack(side="right", fill="y")
+table.pack(fill="both", expand=True, side="left")
 
-table.tag_configure("criado",     foreground="#66BB6A")
-table.tag_configure("existe",     foreground="#EF5350")
-table.tag_configure("disponivel", foreground="#FFA726")
-table.tag_configure("erro_dados", foreground="#FF7043")
+# Estilo geral da tabela — fonte maior e altura de linha
+style = ttk.Style()
+style.configure("Treeview",
+    font=("Arial", 11),
+    rowheight=26
+)
+style.configure("Treeview.Heading",
+    font=("Arial", 11, "bold")
+)
+
+# Tags de cor por status
+table.tag_configure("carregado",  foreground="#000000")   # preto — contrasta com fundo
+table.tag_configure("criado",     foreground="#66BB6A")   # verde
+table.tag_configure("existe",     foreground="#EF5350")   # vermelho
+table.tag_configure("disponivel", foreground="#FFA726")   # amarelo — disponível para criar
+table.tag_configure("erro_dados", foreground="#FF7043")   # laranja — erro de validação
 
 table.bind("<Button-1>", toggle_check)
 
@@ -1183,11 +1458,20 @@ frame_rodape.pack(fill="x", padx=20, pady=(0,8))
 
 label_rodape = ctk.CTkLabel(
     frame_rodape,
-    text="Total: 0  |  Selecionados: 0  |  Criados: 0  |  Erros: 0",
+    text="Total: 0  |  Selecionados: 0  |  ✅ Criados: 0  |  🔵 Já existe: 0  |  ❌ Erros: 0",
     font=("Arial",10),
     text_color="gray"
 )
 label_rodape.pack(side="left", padx=12, pady=4)
+
+# Label de ação animada (spinner) — lado direito do rodapé
+label_acao = ctk.CTkLabel(
+    frame_rodape,
+    text="",
+    font=("Arial",10,"bold"),
+    text_color=COR_PRIMARIA
+)
+label_acao.pack(side="right", padx=12, pady=4)
 
 # ---------- INICIALIZAR ----------
 adicionar_log("Tech Solutions - AD Manager iniciado.", "info")
