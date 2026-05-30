@@ -5,13 +5,13 @@
 ; ================================================================
 
 #define AppName      "Tech Solutions AD Manager"
-#define AppVersion   "2.0.0"
+#define AppVersion "2.1.0"
 #define AppPublisher "Tech Solutions"
 #define AppExeName   "GerenciadorAD.exe"
 #define AppURL       "https://github.com/seu-usuario/ad-manager-releases/releases"
 
 ; ── Raiz do projeto — caminho absoluto da sua máquina
-#define AppDir       "C:\Tech Solutions - AD Manager"
+#define AppDir "C:\ad-manager-releases\Tech-Solutions---AD-Manager"
 
 ; ================================================================
 [Setup]
