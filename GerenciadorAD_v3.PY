@@ -85,7 +85,6 @@ UNCHECKED = "☐"
 # CONFIGURAÇÕES DE LOGIN E SENHA
 # =============================
 
-# Blocos disponíveis para montar o formato
 BLOCOS_LOGIN = [
     "primeiro_nome",
     "ultimo_nome",
@@ -104,16 +103,15 @@ BLOCOS_SENHA = [
     "senha_fixa",
 ]
 
-# Configuração ativa (pode ser alterada pelo usuário)
 config_login = {
     "blocos":    ["primeiro_nome", "ultimo_nome", "cpf_4"],
-    "separador": "",           # "" | "." | "_"
+    "separador": "",
 }
 
 config_senha = {
     "blocos":           ["cpf_completo"],
-    "senha_fixa":       "Tech@2026",    # usado somente se bloco "senha_fixa" estiver ativo
-    "forcar_troca":     False,          # forçar troca de senha no próximo login
+    "senha_fixa":       "Tech@2026",
+    "forcar_troca":     False,
 }
 
 # =============================
@@ -124,16 +122,14 @@ def remover_acentos(texto):
     return unidecode(str(texto))
 
 def limpar_cpf(cpf):
-    # Remove tudo que não é dígito e garante zeros à esquerda até 11 dígitos
     apenas_digitos = re.sub(r'\D', '', str(cpf))
     return apenas_digitos.zfill(11) if len(apenas_digitos) <= 11 else apenas_digitos
 
 def formatar_cpf(cpf):
-    # Garante exibição sempre no formato 000.000.000-00
     digitos = limpar_cpf(cpf)
     if len(digitos) == 11:
         return f"{digitos[:3]}.{digitos[3:6]}.{digitos[6:9]}-{digitos[9:]}"
-    return cpf  # retorna original se não tiver 11 dígitos
+    return cpf
 
 def _resolver_bloco_login(bloco, nome, cpf):
     partes = nome.strip().split()
@@ -148,7 +144,7 @@ def _resolver_bloco_login(bloco, nome, cpf):
         "cpf_4":         cpf_lp[:4],
         "cpf_6":         cpf_lp[:6],
         "cpf_completo":  cpf_lp,
-        "matricula":     "",          # preenchido na hora se disponível
+        "matricula":     "",
     }
     return mapa.get(bloco, "")
 
@@ -189,34 +185,30 @@ def gerar_senha(nome, cpf):
         if val:
             partes.append(val)
     senha = "".join(partes) or limpar_cpf(cpf)
-    # Garante que senha baseada em CPF sempre tenha 11 dígitos
     if senha.isdigit() and len(senha) < 11:
         senha = senha.zfill(11)
     return senha
 
 # =============================
-# VALIDAÇÃO DE CPF (dígitos verificadores)
+# VALIDAÇÃO DE CPF
 # =============================
 
 def validar_cpf_matematico(cpf_str):
     cpf = limpar_cpf(cpf_str)
     if len(cpf) != 11:
         return False
-    if cpf == cpf[0] * 11:          # sequências iguais
+    if cpf == cpf[0] * 11:
         return False
-    # Primeiro dígito verificador
     soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
     d1   = (soma * 10 % 11) % 10
     if d1 != int(cpf[9]):
         return False
-    # Segundo dígito verificador
     soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
     d2   = (soma * 10 % 11) % 10
     return d2 == int(cpf[10])
 
 def validar_linha(nome, cpf, linha_num):
     erros = []
-    # Nome
     if not nome or nome.lower() in ("nan", ""):
         erros.append(f"Linha {linha_num}: Nome vazio ou inválido ('{nome}')")
     else:
@@ -226,7 +218,6 @@ def validar_linha(nome, cpf, linha_num):
                 f"Linha {linha_num}: Nome '{nome}' incompleto "
                 f"— necessário ao menos primeiro e último nome"
             )
-    # CPF — dígitos verificadores
     cpf_limpo = limpar_cpf(cpf)
     if len(cpf_limpo) != 11:
         erros.append(
@@ -245,9 +236,6 @@ def validar_linha(nome, cpf, linha_num):
 # =============================
 
 def adicionar_log(msg, tipo="info"):
-    """
-    tipo: "info" | "ok" | "aviso" | "erro"
-    """
     cores = {
         "info":  "white",
         "ok":    "#66BB6A",
@@ -255,7 +243,6 @@ def adicionar_log(msg, tipo="info"):
         "erro":  "#EF5350",
     }
     cor = cores.get(tipo, "white")
-
     log_box.configure(state="normal")
     log_box.insert(tk.END, msg + "\n", tipo)
     log_box.tag_configure(tipo, foreground=cor)
@@ -488,7 +475,6 @@ def abrir_configuracoes():
     ctk.CTkLabel(win, text="Monte o formato de login e senha arrastando os blocos ou usando os controles abaixo.",
                  text_color="gray", wraplength=660).pack(pady=(0,10))
 
-    # ---------- SEPARADOR DE LOGIN ----------
     frame_sep = ctk.CTkFrame(win)
     frame_sep.pack(fill="x", padx=20, pady=(0,8))
     ctk.CTkLabel(frame_sep, text="Separador de Login:", width=160, anchor="w").pack(side="left", padx=8)
@@ -496,17 +482,14 @@ def abrir_configuracoes():
     for txt, val in [("Nenhum",""), ("Ponto (.)","." ), ("Underline (_)","_")]:
         ctk.CTkRadioButton(frame_sep, text=txt, variable=sep_var, value=val).pack(side="left", padx=6)
 
-    # ---------- BLOCOS DE LOGIN ----------
     ctk.CTkLabel(win, text="Blocos do Login (ordem importa):", font=("Arial",12,"bold"), anchor="w").pack(fill="x", padx=20)
 
     frame_login_blocos = ctk.CTkFrame(win)
     frame_login_blocos.pack(fill="x", padx=20, pady=(4,10))
 
     login_checks = {}
-    login_order  = list(config_login["blocos"])
 
     def rebuild_login_preview():
-        # preview com nome/cpf de exemplo
         nome_ex = "Maria Santos"
         cpf_ex  = "12345678901"
         blocos_ativos = [b for b in BLOCOS_LOGIN if login_checks.get(b, tk.BooleanVar()).get() and b != "matricula"]
@@ -533,7 +516,6 @@ def abrir_configuracoes():
     sep_var.trace_add("write", lambda *_: rebuild_login_preview())
     rebuild_login_preview()
 
-    # ---------- BLOCOS DE SENHA ----------
     ctk.CTkLabel(win, text="Blocos da Senha:", font=("Arial",12,"bold"), anchor="w").pack(fill="x", padx=20)
 
     frame_senha_blocos = ctk.CTkFrame(win)
@@ -552,7 +534,6 @@ def abrir_configuracoes():
             col_s = 0
             row_s += 1
 
-    # Senha fixa
     frame_fixa = ctk.CTkFrame(win)
     frame_fixa.pack(fill="x", padx=20, pady=(0,8))
     ctk.CTkLabel(frame_fixa, text="Senha Fixa:", width=100, anchor="w").pack(side="left", padx=8)
@@ -562,7 +543,6 @@ def abrir_configuracoes():
     ctk.CTkLabel(frame_fixa, text="(usada quando bloco 'Senha Fixa' estiver marcado)",
                  text_color="gray", font=("Arial",10)).pack(side="left", padx=6)
 
-    # Preview senha
     def rebuild_senha_preview():
         nome_ex = "Maria Santos"
         cpf_ex  = "12345678901"
@@ -583,7 +563,6 @@ def abrir_configuracoes():
     lbl_senha_prev.pack(pady=(0,6))
     rebuild_senha_preview()
 
-    # ---------- OPÇÕES AVANÇADAS ----------
     frame_avancado = ctk.CTkFrame(win)
     frame_avancado.pack(fill="x", padx=20, pady=(0,8))
 
@@ -598,7 +577,6 @@ def abrir_configuracoes():
         text_color=COR_AVISO
     ).pack(side="left", padx=12)
 
-    # ---------- BOTÕES ----------
     frame_btns = ctk.CTkFrame(win, fg_color="transparent")
     frame_btns.pack(pady=10)
 
@@ -610,7 +588,6 @@ def abrir_configuracoes():
         config_senha["forcar_troca"]= False
         adicionar_log("↺ Configurações restauradas para o padrão.", "aviso")
         win.destroy()
-        # Recarregar planilha para regenerar logins
         if excel_path:
             carregar_preview()
 
@@ -633,6 +610,91 @@ def abrir_configuracoes():
                   width=160, command=restaurar_padrao).pack(side="left", padx=8)
     ctk.CTkButton(frame_btns, text="✔ Salvar", fg_color=COR_SECUNDARIA, hover_color=COR_SEC_HOVER,
                   width=120, command=salvar).pack(side="left", padx=8)
+
+# =============================
+# JANELA — SOBRE O DESENVOLVEDOR  ← NOVO
+# =============================
+
+def abrir_sobre():
+    import webbrowser
+
+    win = ctk.CTkToplevel(app)
+    win.title("Sobre")
+    win.geometry("400x430")
+    win.resizable(False, False)
+    win.grab_set()
+
+    # Carregar ícones — converte para RGBA para garantir compatibilidade
+    def load_ico(nome):
+        try:
+            img = Image.open(resource_path(f"icons/{nome}.ico")).convert("RGBA")
+            return ctk.CTkImage(img, size=(16, 16))
+        except:
+            return None
+
+    ico_github   = load_ico("github")
+    ico_linkedin = load_ico("linkedin")
+    ico_email    = load_ico("envelope")
+
+    # ── Avatar ──
+    ctk.CTkLabel(
+        win, text="EG",
+        font=("Arial", 26, "bold"),
+        width=70, height=70,
+        fg_color=COR_PRIMARIA,
+        corner_radius=35,
+        text_color="white"
+    ).pack(pady=(22, 0))
+
+    # ── Nome e cargo ──
+    ctk.CTkLabel(win, text="Eduardo Gabriel",
+                 font=("Arial", 15, "bold")).pack(pady=(10, 1))
+    ctk.CTkLabel(win, text="Suporte Técnico · Tech Solutions",
+                 font=("Arial", 11), text_color="gray").pack(pady=(0, 14))
+
+    # ── Cards de link — grid para alinhamento perfeito ──
+    links = [
+        (ico_github,   "GitHub",   "github.com/Eduardo-Dev-0",     "https://github.com/Eduardo-Dev-0"),
+        (ico_linkedin, "LinkedIn", "eduardo-gabriel-meneses",       "https://www.linkedin.com/in/eduardo-gabriel-meneses-9752b8384"),
+        (ico_email,    "E-mail",   "eduardogabriel00442@gmail.com", "mailto:eduardogabriel00442@gmail.com"),
+    ]
+
+    for ico, titulo, label_txt, url in links:
+        card = ctk.CTkFrame(win, fg_color=COR_NEUTRO, corner_radius=8, height=42)
+        card.pack(fill="x", padx=20, pady=4)
+        card.pack_propagate(False)
+        card.grid_columnconfigure(1, weight=1)
+        card.grid_rowconfigure(0, weight=1)
+
+        # Coluna 0 — ícone + título (largura fixa)
+        ctk.CTkLabel(
+            card, text=f"  {titulo}",
+            image=ico, compound="left",
+            font=("Arial", 12, "bold"),
+            width=105, anchor="w"
+        ).grid(row=0, column=0, sticky="w", padx=(8, 0))
+
+        # Coluna 1 — link (expande)
+        ctk.CTkLabel(
+            card, text=label_txt,
+            font=("Consolas", 10),
+            text_color=COR_PRIMARIA,
+            anchor="w"
+        ).grid(row=0, column=1, sticky="ew", padx=(4, 0))
+
+        # Coluna 2 — botão Abrir (largura fixa)
+        ctk.CTkButton(
+            card, text="Abrir", width=68, height=30,
+            fg_color=COR_SECUNDARIA, hover_color=COR_SEC_HOVER,
+            font=("Arial", 11),
+            command=lambda u=url: webbrowser.open(u)
+        ).grid(row=0, column=2, padx=(0, 8))
+
+    # ── Rodapé ──
+    ctk.CTkLabel(win, text="Tech Solutions — AD Manager",
+                 font=("Arial", 10), text_color="#444").pack(pady=(14, 0))
+    ctk.CTkLabel(win, text="v2.1",
+                 font=("Arial", 10), text_color="#444").pack(pady=(1, 10))
 
 # =============================
 # CHECKBOXES / SELEÇÃO
@@ -670,7 +732,6 @@ def itens_selecionados():
 # =============================
 
 def verificar_duplicatas_planilha(logins_gerados):
-    """Retorna dict login → [linhas] para logins que aparecem mais de uma vez."""
     contagem = {}
     for idx, login in logins_gerados:
         contagem.setdefault(login, []).append(idx)
@@ -727,11 +788,10 @@ def carregar_preview():
         table.delete(*table.get_children())
 
         erros_encontrados = []
-        logins_gerados    = []   # (linha_num, login) para checar duplicatas
+        logins_gerados    = []
         total = 0
         ok    = 0
 
-        # Detecta se há coluna Matrícula
         tem_matricula = "Matrícula" in dados.columns or "Matricula" in dados.columns
         col_mat = "Matrícula" if "Matrícula" in dados.columns else ("Matricula" if "Matricula" in dados.columns else None)
 
@@ -764,7 +824,6 @@ def carregar_preview():
                     tags=("carregado",))
                 ok += 1
 
-        # 15 — Detectar duplicatas de login na própria planilha
         dups = verificar_duplicatas_planilha(logins_gerados)
         if dups:
             adicionar_log("─"*55, "info")
@@ -814,7 +873,6 @@ def exportar_relatorio():
     linhas = []
     for item in itens:
         v = table.item(item, "values")
-        # colunas: Sel(0) Nome(1) CPF(2) Login(3) Senha(4) Status(5)
         linhas.append({
             "Nome":   v[1],
             "CPF":    v[2],
@@ -874,7 +932,6 @@ def criar():
         adicionar_log("⚠ Nenhum usuário selecionado.", "aviso")
         return
 
-    # Conectar ao container da OU — envolvido em try para não congelar
     try:
         adicionar_log(f"🔗 Conectando à OU: {OU_USUARIOS}", "info")
         container = adcontainer.ADContainer.from_dn(OU_USUARIOS)
@@ -893,22 +950,19 @@ def criar():
             nome  = str(dados[1]).strip()
             cpf   = limpar_cpf(str(dados[2]))
             login = str(dados[3]).strip()
-            senha = str(dados[4]).strip()  # Treeview pode retornar int — forçar string
+            senha = str(dados[4]).strip()
 
             adicionar_log(f"  [{idx}/{len(alvos)}] Processando: {login}", "info")
 
-            # Pular linha com erro de validação
             if login == "—":
                 adicionar_log(f"  ⚠ Linha ignorada — login inválido", "aviso")
                 atualizar_progresso(idx, len(alvos))
                 continue
 
-            # Garantir senha com 11 dígitos (silencioso — comportamento padrão)
             if senha.isdigit() and len(senha) < 11:
                 senha = senha.zfill(11)
                 table.item(item, values=(dados[0],nome,dados[2],login,senha,dados[5]))
 
-            # Bloquear se senha ainda estiver incorreta
             if senha.isdigit() and len(senha) != 11:
                 adicionar_log(
                     f"  ✖ {login} ignorado — senha com {len(senha)} dígitos (esperado: 11)", "erro"
@@ -916,7 +970,6 @@ def criar():
                 atualizar_progresso(idx, len(alvos))
                 continue
 
-            # Verificar existência no AD
             try:
                 ja_existe = usuario_existe(login)
             except Exception as e:
@@ -930,7 +983,6 @@ def criar():
                 atualizar_progresso(idx, len(alvos))
                 continue
 
-            # Criar o usuário
             try:
                 adicionar_log(f"  → Criando usuário: {login}", "info")
                 user = aduser.ADUser.create(login, container, password=senha)
@@ -940,14 +992,12 @@ def criar():
                 atualizar_progresso(idx, len(alvos))
                 continue
 
-            # Atualizar atributos
             try:
                 user.update_attribute("displayName", nome)
                 user.update_attribute("userPrincipalName", f"{login}@{DOMINIO}")
             except Exception as e:
                 adicionar_log(f"  ⚠ {login} criado mas atributos não atualizados: {e}", "aviso")
 
-            # Forçar troca de senha se configurado
             if config_senha.get("forcar_troca", False):
                 try:
                     user.update_attribute("pwdLastSet", "0")
@@ -960,7 +1010,6 @@ def criar():
             adicionar_log(f"  ✔ Usuário criado com sucesso: {login}", "ok")
 
         except Exception as e:
-            # Captura qualquer erro inesperado no loop sem deixar a ferramenta congelar
             adicionar_log(f"  ✖ Erro inesperado ao processar item {idx}: {e}", "erro")
 
         atualizar_progresso(idx, len(alvos))
@@ -979,7 +1028,6 @@ def redefinir_senha():
         adicionar_log("⚠ Nenhum usuário selecionado.", "aviso")
         return
 
-    # ── Janela de opções de reset ──
     win = ctk.CTkToplevel(app)
     win.title("Redefinir Senha")
     win.geometry("480x340")
@@ -993,47 +1041,36 @@ def redefinir_senha():
 
     opcao_var = tk.StringVar(value="cpf")
 
-    # ── Opção 1 — CPF (padrão) ──
     frame_op1 = ctk.CTkFrame(win)
     frame_op1.pack(fill="x", padx=24, pady=4)
     ctk.CTkRadioButton(
         frame_op1, text="CPF do usuário  (11 dígitos — padrão)",
-        variable=opcao_var, value="cpf",
-        font=("Arial", 12)
+        variable=opcao_var, value="cpf", font=("Arial", 12)
     ).pack(side="left", padx=12, pady=10)
 
-    # ── Opção 2 — Senha padrão + forçar troca ──
     frame_op2 = ctk.CTkFrame(win)
     frame_op2.pack(fill="x", padx=24, pady=4)
     ctk.CTkRadioButton(
         frame_op2, text="Senha padrão  12345678  + forçar troca no próximo login",
-        variable=opcao_var, value="padrao",
-        font=("Arial", 12), text_color=COR_AVISO
+        variable=opcao_var, value="padrao", font=("Arial", 12), text_color=COR_AVISO
     ).pack(side="left", padx=12, pady=10)
 
-    # ── Opção 3 — Senha manual ──
     frame_op3 = ctk.CTkFrame(win)
     frame_op3.pack(fill="x", padx=24, pady=4)
-
     ctk.CTkRadioButton(
         frame_op3, text="Senha manual:",
-        variable=opcao_var, value="manual",
-        font=("Arial", 12)
+        variable=opcao_var, value="manual", font=("Arial", 12)
     ).pack(side="left", padx=12, pady=10)
 
     entry_manual = ctk.CTkEntry(frame_op3, width=180, placeholder_text="Digite a senha")
     entry_manual.pack(side="left", padx=(0, 12), pady=10)
-
-    # Ao clicar no campo manual, seleciona a opção automaticamente
     entry_manual.bind("<FocusIn>", lambda *_: opcao_var.set("manual"))
 
-    # ── Botões ──
     frame_btns = ctk.CTkFrame(win, fg_color="transparent")
     frame_btns.pack(pady=(12, 0))
 
     def confirmar():
         opcao = opcao_var.get()
-
         if opcao == "manual":
             senha_manual = entry_manual.get().strip()
             if not senha_manual:
@@ -1042,10 +1079,8 @@ def redefinir_senha():
             if len(senha_manual) < 8:
                 messagebox.showwarning("Atenção", "A senha deve ter no mínimo 8 caracteres.", parent=win)
                 return
-
         senha_final = entry_manual.get().strip()
         win.destroy()
-        # Executa em thread separada para não travar a interface
         threading.Thread(
             target=_executar_redefinir,
             args=(alvos, opcao, senha_final),
@@ -1064,8 +1099,6 @@ def redefinir_senha():
 
 
 def _executar_redefinir(alvos, opcao, senha_manual=""):
-    """Executa o reset de senha conforme a opção escolhida."""
-
     adicionar_log(f"🔑 Redefinindo senha de {len(alvos)} usuário(s) — modo: {opcao}", "info")
     iniciar_progresso(len(alvos), "Redefinindo Senha")
 
@@ -1078,9 +1111,8 @@ def _executar_redefinir(alvos, opcao, senha_manual=""):
             atualizar_progresso(idx, len(alvos))
             continue
 
-        # Determinar a senha conforme opção
         if opcao == "cpf":
-            senha = cpf  # CPF completo 11 dígitos
+            senha = cpf
         elif opcao == "padrao":
             senha = "12345678"
         else:
@@ -1102,12 +1134,11 @@ def _executar_redefinir(alvos, opcao, senha_manual=""):
             user = aduser.ADUser.from_dn(res[0]["distinguishedName"])
             user.set_password(senha)
 
-            # Opção padrão: forçar troca no próximo login
             if opcao == "padrao":
                 try:
                     user.update_attribute("pwdLastSet", "0")
                 except Exception:
-                    pass  # Não bloquear se não conseguir forçar troca
+                    pass
 
             adicionar_log(f"✔ Senha redefinida: {login}", "ok")
 
@@ -1280,12 +1311,18 @@ frame_top.pack(fill="x", padx=20, pady=10)
 ctk.CTkLabel(frame_top, text="Tech Solutions - Gerenciador AD",
              font=("Arial",20,"bold")).pack(side="left", padx=10)
 
-# Botão configurações no topo direito
+# Botões no topo direito
 ctk.CTkButton(
     frame_top, text="⚙ Configurações",
     fg_color=COR_NEUTRO, hover_color=COR_NEU_HOVER, width=150,
     command=abrir_configuracoes
-).pack(side="right", padx=10)
+).pack(side="right", padx=(4, 10))
+
+ctk.CTkButton(
+    frame_top, text="ℹ Sobre",
+    fg_color=COR_NEUTRO, hover_color=COR_NEU_HOVER, width=100,
+    command=abrir_sobre
+).pack(side="right", padx=4)
 
 # ---------- DOMÍNIO / OU ----------
 frame_dominio = ctk.CTkFrame(app)
@@ -1347,7 +1384,6 @@ ctk.CTkButton(frame_sel, text="☐ Desselecionar Todos",
 frame_table = ctk.CTkFrame(app)
 frame_table.pack(fill="both", expand=True, padx=20)
 
-# Agora com coluna Senha
 columns = ("Sel","Nome","CPF","Login","Senha","Status")
 table   = ttk.Treeview(frame_table, columns=columns, show="headings")
 
@@ -1365,28 +1401,20 @@ table.column("Login",  width=200)
 table.column("Senha",  width=180)
 table.column("Status", width=110)
 
-# Scrollbar vertical na tabela
 scroll_table = ttk.Scrollbar(frame_table, orient="vertical", command=table.yview)
 table.configure(yscrollcommand=scroll_table.set)
 scroll_table.pack(side="right", fill="y")
 table.pack(fill="both", expand=True, side="left")
 
-# Estilo geral da tabela — fonte maior e altura de linha
 style = ttk.Style()
-style.configure("Treeview",
-    font=("Arial", 11),
-    rowheight=26
-)
-style.configure("Treeview.Heading",
-    font=("Arial", 11, "bold")
-)
+style.configure("Treeview", font=("Arial", 11), rowheight=26)
+style.configure("Treeview.Heading", font=("Arial", 11, "bold"))
 
-# Tags de cor por status
-table.tag_configure("carregado",  foreground="#000000")   # preto — contrasta com fundo
-table.tag_configure("criado",     foreground="#66BB6A")   # verde
-table.tag_configure("existe",     foreground="#EF5350")   # vermelho
-table.tag_configure("disponivel", foreground="#FFA726")   # amarelo — disponível para criar
-table.tag_configure("erro_dados", foreground="#FF7043")   # laranja — erro de validação
+table.tag_configure("carregado",  foreground="#000000")
+table.tag_configure("criado",     foreground="#66BB6A")
+table.tag_configure("existe",     foreground="#EF5350")
+table.tag_configure("disponivel", foreground="#FFA726")
+table.tag_configure("erro_dados", foreground="#FF7043")
 
 table.bind("<Button-1>", toggle_check)
 
@@ -1406,7 +1434,6 @@ for texto, icone, func in [
                   command=lambda f=func: executar_thread(f)
     ).pack(side="left", padx=5, pady=6)
 
-# Botões extras
 ctk.CTkButton(frame_buttons, text="🔑 Redefinir Senha",
               fg_color=COR_NEUTRO, hover_color=COR_NEU_HOVER, width=150,
               command=lambda: executar_thread(redefinir_senha)
@@ -1419,7 +1446,6 @@ ctk.CTkButton(frame_buttons, text="📁 Mover OU",
 
 # ---------- BARRA DE PROGRESSO ----------
 frame_progresso = ctk.CTkFrame(app)
-# Começa escondida — aparece só durante operações
 
 progress_bar = ctk.CTkProgressBar(frame_progresso, mode="determinate", width=800)
 progress_bar.pack(side="left", padx=(10,8), pady=6)
@@ -1464,7 +1490,6 @@ label_rodape = ctk.CTkLabel(
 )
 label_rodape.pack(side="left", padx=12, pady=4)
 
-# Label de ação animada (spinner) — lado direito do rodapé
 label_acao = ctk.CTkLabel(
     frame_rodape,
     text="",
