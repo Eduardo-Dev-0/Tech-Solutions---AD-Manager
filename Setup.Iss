@@ -11,7 +11,7 @@
 #define AppURL       "https://github.com/seu-usuario/ad-manager-releases/releases"
 
 ; ── Raiz do projeto — caminho absoluto da sua máquina
-#define AppDir "C:\ad-manager-releases\Tech-Solutions---AD-Manager"
+#define AppDir "C:\Users\eduardo.caetano\Documents\GitHub\Tech-Solutions---AD-Manager"
 
 ; ================================================================
 [Setup]
