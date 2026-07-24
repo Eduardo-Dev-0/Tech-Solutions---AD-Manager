@@ -985,7 +985,13 @@ def criar():
 
             try:
                 adicionar_log(f"  → Criando usuário: {login}", "info")
-                user = aduser.ADUser.create(login, container, password=senha)
+                # O pyad usa o 1º argumento como CN ("Nome completo") do objeto.
+                # Criamos já com o nome completo, e o login vai só via optional_attributes
+                # como sAMAccountName — assim CN e sAMAccountName ficam corretos desde o início.
+                user = aduser.ADUser.create(
+                    nome, container, password=senha,
+                    optional_attributes={"sAMAccountName": login}
+                )
             except Exception as e:
                 adicionar_log(f"  ✖ Falha ao criar {login}: {e}", "erro")
                 table.item(item, values=(dados[0],nome,cpf,login,senha,"❌ Erro"), tags=("erro_dados",))
@@ -995,6 +1001,11 @@ def criar():
             try:
                 user.update_attribute("displayName", nome)
                 user.update_attribute("userPrincipalName", f"{login}@{DOMINIO}")
+                partes_nome = nome.strip().split()
+                if partes_nome:
+                    user.update_attribute("givenName", partes_nome[0])
+                    if len(partes_nome) > 1:
+                        user.update_attribute("sn", partes_nome[-1])
             except Exception as e:
                 adicionar_log(f"  ⚠ {login} criado mas atributos não atualizados: {e}", "aviso")
 
